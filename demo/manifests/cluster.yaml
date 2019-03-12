@@ -1,0 +1,105 @@
+# Namespace where the Cassandra Cluster will be created
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: rook-cassandra
+
+---
+
+# Role for cassandra members.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: rook-cassandra-member
+  namespace: rook-cassandra
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - pods
+    verbs:
+      - get
+  - apiGroups:
+      - ""
+    resources:
+      - services
+    verbs:
+      - get
+      - list
+      - patch
+      - watch
+  - apiGroups:
+      - cassandra.rook.io
+    resources:
+      - clusters
+    verbs:
+      - get
+
+---
+
+# ServiceAccount for cassandra members.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rook-cassandra-member
+  namespace: rook-cassandra
+
+---
+
+# RoleBinding for cassandra members.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: rook-cassandra-member
+  namespace: rook-cassandra
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: rook-cassandra-member
+subjects:
+- kind: ServiceAccount
+  name: rook-cassandra-member
+  namespace: rook-cassandra
+
+---
+
+# Cassandra Cluster
+apiVersion: cassandra.rook.io/v1alpha1
+kind: Cluster
+metadata:
+  name: rook-cassandra
+  namespace: rook-cassandra
+spec:
+  version: 3.11.1
+  mode: cassandra
+  datacenter:
+    name: europe-west1
+    racks:
+      - name: europe-west1-b
+        members: 3
+        storage:
+          volumeClaimTemplates:
+                - metadata:
+                    name: rook-cassandra-data
+                  spec:
+                    storageClassName: local-disks
+                    resources:
+                      requests:
+                        storage: 350Gi
+        resources:
+          requests:
+            cpu: 2
+            memory: 8Gi
+          limits:
+            cpu: 2
+            memory: 8Gi
+        placement:
+          nodeAffinity:
+            requiredDuringSchedulingIgnoredDuringExecution:
+              nodeSelectorTerms:
+                - matchExpressions:
+                  - key: failure-domain.beta.kubernetes.io/zone
+                    operator: In
+                    values:
+                      - europe-west1-b
+
